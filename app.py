@@ -18,18 +18,15 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(info, scopes=scope)
 client = gspread.authorize(creds)
 
-# Link direto da planilha
+# Link da planilha
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/1RgQ1Q75CwlbVbCFWCxauO_Z6gJwAAvxuTAqNBfqRpyQ/edit"
-
-# Abrir abas
 sheet = client.open_by_url(spreadsheet_url).worksheet("leituras")
 aba_tarifas = client.open_by_url(spreadsheet_url).worksheet("tarifas")
 
-# Interface Streamlit
+# Interface
 st.title("🔌 Controle de Consumo de Energia")
 st.caption("Acompanhe, projete e compare o consumo de energia mês a mês.")
 
-# Entradas
 data_leitura = st.date_input("📅 Data da Leitura", datetime.date.today())
 leitura = st.number_input("🔢 Numeração atual do relógio (kWh)", min_value=0)
 
@@ -40,13 +37,13 @@ if st.button("💾 Salvar Leitura"):
 
     consumo_parcial = leitura - ultima_leitura
     dias_passados = (data_leitura - data_ultima).days or 1
-    media_diaria = consumo_parcial / dias_passados
+    media_diaria = round(consumo_parcial / dias_passados, 2)
     dias_totais = 30
     projecao_kwh = round(media_diaria * dias_totais, 2)
 
     mes = data_leitura.strftime("%Y-%m")
 
-    # Buscar tarifa com tratamento de vírgulas e falhas
+    # Buscar tarifa da aba
     try:
         df_tarifas = pd.DataFrame(aba_tarifas.get_all_records())
         tarifa_do_mes = df_tarifas[df_tarifas["mes"] == mes]["tarifa"].values
@@ -56,23 +53,35 @@ if st.button("💾 Salvar Leitura"):
             try:
                 tarifa = float(tarifa_str)
             except ValueError:
-                st.warning("⚠️ Tarifa inválida encontrada. Usando valor padrão.")
+                st.warning("⚠️ Tarifa inválida. Usando padrão: 0.91")
                 tarifa = 0.91
         else:
             tarifa = 0.91
-
     except Exception:
-        st.warning("⚠️ Não foi possível buscar a tarifa atual, usando valor padrão.")
+        st.warning("⚠️ Não foi possível buscar a tarifa. Usando padrão: 0.91")
         tarifa = 0.91
 
     valor_estimado = round(projecao_kwh * tarifa, 2)
 
-    nova_linha = [str(data_leitura), leitura, consumo_parcial, dias_passados,
-                  round(media_diaria, 2), projecao_kwh, valor_estimado, mes]
+    nova_linha = [
+        str(data_leitura),
+        leitura,
+        consumo_parcial,
+        dias_passados,
+        media_diaria,
+        projecao_kwh,
+        valor_estimado,
+        mes
+    ]
     sheet.append_row(nova_linha)
     st.success(f"✅ Leitura salva! Estimativa da conta: R$ {valor_estimado:.2f}")
 
-# Exibir histórico
+# Histórico
 st.subheader("📊 Histórico de Leituras")
 df = pd.DataFrame(sheet.get_all_records())
+
+# Converter colunas numéricas
+for col in ["leitura", "consumo_parcial", "dias_passados", "media_diaria", "projecao_kwh", "valor_estimado"]:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
 st.dataframe(df)
