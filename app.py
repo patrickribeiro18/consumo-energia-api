@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import datetime
 import gspread
+import altair as alt
 from google.oauth2.service_account import Credentials
 
-# Autenticação via st.secrets
+# Autenticação
 info = {
     "type": st.secrets["google_service_account"]["type"],
     "project_id": st.secrets["google_service_account"]["project_id"],
@@ -18,12 +19,12 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(info, scopes=scope)
 client = gspread.authorize(creds)
 
-# Link da planilha
+# Acessar planilhas
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/1RgQ1Q75CwlbVbCFWCxauO_Z6gJwAAvxuTAqNBfqRpyQ/edit"
 sheet = client.open_by_url(spreadsheet_url).worksheet("leituras")
 aba_tarifas = client.open_by_url(spreadsheet_url).worksheet("tarifas")
 
-# Interface
+# Interface principal
 st.title("🔌 Controle de Consumo de Energia")
 st.caption("Acompanhe, projete e compare o consumo de energia mês a mês.")
 
@@ -40,10 +41,9 @@ if st.button("💾 Salvar Leitura"):
     media_diaria = round(consumo_parcial / dias_passados, 2)
     dias_totais = 30
     projecao_kwh = round(media_diaria * dias_totais, 2)
-
     mes = data_leitura.strftime("%Y-%m")
 
-    # Buscar tarifa da aba
+    # Buscar tarifa
     try:
         df_tarifas = pd.DataFrame(aba_tarifas.get_all_records())
         tarifa_do_mes = df_tarifas[df_tarifas["mes"] == mes]["tarifa"].values
@@ -58,21 +58,22 @@ if st.button("💾 Salvar Leitura"):
         else:
             tarifa = 1.05
     except Exception:
-        st.warning("⚠️ Não foi possível buscar a tarifa. Usando padrão: 0.91")
+        st.warning("⚠️ Não foi possível buscar a tarifa. Usando padrão: 1.05")
         tarifa = 1.05
 
     valor_estimado = round(projecao_kwh * tarifa, 2)
 
+    # Salvar na planilha com vírgula
     nova_linha = [
-    str(data_leitura),
-    leitura,
-    consumo_parcial,
-    dias_passados,
-    f"{media_diaria:.2f}".replace(".", ","),
-    f"{projecao_kwh:.2f}".replace(".", ","),
-    f"{valor_estimado:.2f}".replace(".", ","),
-    mes
-]
+        str(data_leitura),
+        leitura,
+        consumo_parcial,
+        dias_passados,
+        f"{media_diaria:.2f}".replace(".", ","),
+        f"{projecao_kwh:.2f}".replace(".", ","),
+        f"{valor_estimado:.2f}".replace(".", ","),
+        mes
+    ]
     sheet.append_row(nova_linha)
     st.success(f"✅ Leitura salva! Estimativa da conta: R$ {valor_estimado:.2f}")
 
@@ -80,26 +81,24 @@ if st.button("💾 Salvar Leitura"):
 st.subheader("📊 Histórico de Leituras")
 df = pd.DataFrame(sheet.get_all_records())
 
-# Garantir conversão numérica segura
+# Colunas numéricas
 colunas_numericas = ["leitura", "consumo_parcial", "dias_passados", "media_diaria", "projecao_kwh", "valor_estimado"]
+
+# Corrigir vírgula → ponto e converter
 for col in colunas_numericas:
     if col in df.columns:
-        df[col] = df[col].astype(str).str.replace(",", ".")
+        df[col] = df[col].astype(str).str.replace(",", ".").str.replace("R$", "").str.strip()
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-# ✅ Formatando manualmente como string com 2 casas decimais
+# Formatar para exibição
 df["media_diaria"] = df["media_diaria"].map("{:.2f}".format)
 df["projecao_kwh"] = df["projecao_kwh"].map("{:.2f}".format)
 df["valor_estimado"] = df["valor_estimado"].map(lambda x: f"R$ {x:.2f}")
 
-# Exibir a tabela final
 st.dataframe(df)
 
-import altair as alt
-
 # Gráfico de consumo mensal
-st.subheader("📉 Consumo Acumulado por Mês")
-
+st.subheader("📈 Consumo Acumulado por Mês")
 if "mes" in df.columns and "consumo_parcial" in df.columns:
     grafico = (
         alt.Chart(df)
@@ -113,4 +112,4 @@ if "mes" in df.columns and "consumo_parcial" in df.columns:
     )
     st.altair_chart(grafico, use_container_width=True)
 else:
-    st.info("📌 Não há dados suficientes para gerar o gráfico.")
+    st.info("📌 Ainda não há dados suficientes para gerar o gráfico.")
