@@ -86,9 +86,30 @@ for col in colunas_numericas:
     if col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-# Exibir com formatação decimal
-st.dataframe(df.style.format({
-    "media_diaria": "{:.2f}",
-    "projecao_kwh": "{:.2f}",
-    "valor_estimado": "R$ {:.2f}"
-}))
+# ✅ Formatando manualmente como string com 2 casas decimais
+df["media_diaria"] = df["media_diaria"].map("{:.2f}".format)
+df["projecao_kwh"] = df["projecao_kwh"].map("{:.2f}".format)
+df["valor_estimado"] = df["valor_estimado"].map(lambda x: f"R$ {x:.2f}")
+
+# Exibir a tabela final
+st.dataframe(df)
+
+import altair as alt
+
+# Gráfico de consumo mensal
+st.subheader("📉 Consumo Acumulado por Mês")
+
+if "mes" in df.columns and "consumo_parcial" in df.columns:
+    grafico = (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            x=alt.X("mes:N", title="Mês"),
+            y=alt.Y("sum(consumo_parcial):Q", title="Consumo (kWh)"),
+            tooltip=["mes", "sum(consumo_parcial)"]
+        )
+        .properties(width=600, height=300)
+    )
+    st.altair_chart(grafico, use_container_width=True)
+else:
+    st.info("📌 Não há dados suficientes para gerar o gráfico.")
