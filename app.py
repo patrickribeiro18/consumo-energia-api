@@ -53,13 +53,13 @@ if st.button("💾 Salvar Leitura"):
             try:
                 tarifa = float(tarifa_str)
             except ValueError:
-                st.warning("⚠️ Tarifa inválida. Usando padrão: 0.91")
-                tarifa = 0.91
+                st.warning("⚠️ Tarifa inválida. Usando padrão: 1.05")
+                tarifa = 1.05
         else:
-            tarifa = 0.91
+            tarifa = 1.05
     except Exception:
         st.warning("⚠️ Não foi possível buscar a tarifa. Usando padrão: 0.91")
-        tarifa = 0.91
+        tarifa = 1.05
 
     valor_estimado = round(projecao_kwh * tarifa, 2)
 
@@ -80,8 +80,15 @@ if st.button("💾 Salvar Leitura"):
 st.subheader("📊 Histórico de Leituras")
 df = pd.DataFrame(sheet.get_all_records())
 
-# Converter colunas numéricas
-for col in ["leitura", "consumo_parcial", "dias_passados", "media_diaria", "projecao_kwh", "valor_estimado"]:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
+# Garantir conversão numérica segura
+colunas_numericas = ["leitura", "consumo_parcial", "dias_passados", "media_diaria", "projecao_kwh", "valor_estimado"]
+for col in colunas_numericas:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
-st.dataframe(df)
+# Exibir com formatação decimal
+st.dataframe(df.style.format({
+    "media_diaria": "{:.2f}",
+    "projecao_kwh": "{:.2f}",
+    "valor_estimado": "R$ {:.2f}"
+}))
