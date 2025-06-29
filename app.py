@@ -85,7 +85,7 @@ colunas_numericas = ["leitura", "consumo_parcial", "dias_passados", "media_diari
 for col in colunas_numericas:
     if col in df.columns:
         df[col] = df[col].astype(str).str.replace(",", ".")
-		df[col] = pd.to_numeric(df[col], errors="coerce")
+	df[col] = pd.to_numeric(df[col], errors="coerce")
 
 # ✅ Formatando manualmente como string com 2 casas decimais
 df["media_diaria"] = df["media_diaria"].map("{:.2f}".format)
