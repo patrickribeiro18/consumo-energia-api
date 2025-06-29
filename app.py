@@ -64,15 +64,15 @@ if st.button("💾 Salvar Leitura"):
     valor_estimado = round(projecao_kwh * tarifa, 2)
 
     nova_linha = [
-        str(data_leitura),
-        leitura,
-        consumo_parcial,
-        dias_passados,
-        media_diaria,
-        projecao_kwh,
-        valor_estimado,
-        mes
-    ]
+    str(data_leitura),
+    leitura,
+    consumo_parcial,
+    dias_passados,
+    f"{media_diaria:.2f}".replace(".", ","),
+    f"{projecao_kwh:.2f}".replace(".", ","),
+    f"{valor_estimado:.2f}".replace(".", ","),
+    mes
+]
     sheet.append_row(nova_linha)
     st.success(f"✅ Leitura salva! Estimativa da conta: R$ {valor_estimado:.2f}")
 
@@ -84,7 +84,8 @@ df = pd.DataFrame(sheet.get_all_records())
 colunas_numericas = ["leitura", "consumo_parcial", "dias_passados", "media_diaria", "projecao_kwh", "valor_estimado"]
 for col in colunas_numericas:
     if col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = df[col].astype(str).str.replace(",", ".")
+		df[col] = pd.to_numeric(df[col], errors="coerce")
 
 # ✅ Formatando manualmente como string com 2 casas decimais
 df["media_diaria"] = df["media_diaria"].map("{:.2f}".format)
