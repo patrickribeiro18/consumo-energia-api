@@ -17,13 +17,19 @@ info = {
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = Credentials.from_service_account_info(info, scopes=scope)
 client = gspread.authorize(creds)
-sheet = client.open("consumo_energia").worksheet("leituras")
 
-# Interface
+# Link direto da planilha
+spreadsheet_url = "https://docs.google.com/spreadsheets/d/1RgQ1Q75CwlbVbCFWCxauO_Z6gJwAAvxuTAqNBfqRpyQ/edit"
+
+# Abrir abas
+sheet = client.open_by_url(spreadsheet_url).worksheet("leituras")
+aba_tarifas = client.open_by_url(spreadsheet_url).worksheet("tarifas")
+
+# Interface Streamlit
 st.title("🔌 Controle de Consumo de Energia")
-st.caption("Acompanhe, projete e compare o consumo de energia")
+st.caption("Acompanhe, projete e compare o consumo de energia mês a mês.")
 
-# Entradas do usuário
+# Entradas
 data_leitura = st.date_input("📅 Data da Leitura", datetime.date.today())
 leitura = st.number_input("🔢 Numeração atual do relógio (kWh)", min_value=0)
 
@@ -38,14 +44,13 @@ if st.button("💾 Salvar Leitura"):
     dias_totais = 30
     projecao_kwh = round(media_diaria * dias_totais, 2)
 
-    # 🔄 Buscar tarifa atual com base no mês
     mes = data_leitura.strftime("%Y-%m")
+
     try:
-        aba_tarifas = client.open("consumo_energia").worksheet("tarifas")
         df_tarifas = pd.DataFrame(aba_tarifas.get_all_records())
         tarifa_do_mes = df_tarifas[df_tarifas["mes"] == mes]["tarifa"].values
         tarifa = float(tarifa_do_mes[0]) if len(tarifa_do_mes) > 0 else 0.91
-    except Exception as e:
+    except Exception:
         st.warning("⚠️ Não foi possível buscar a tarifa atual, usando valor padrão.")
         tarifa = 0.91
 
