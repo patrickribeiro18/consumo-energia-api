@@ -5,7 +5,7 @@ import gspread
 import altair as alt
 from google.oauth2.service_account import Credentials
 
-# Autenticação
+# Autenticação com Google Sheets
 info = {
     "type": st.secrets["google_service_account"]["type"],
     "project_id": st.secrets["google_service_account"]["project_id"],
@@ -19,12 +19,12 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(info, scopes=scope)
 client = gspread.authorize(creds)
 
-# Acessar planilhas
+# Planilhas
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/1RgQ1Q75CwlbVbCFWCxauO_Z6gJwAAvxuTAqNBfqRpyQ/edit"
 sheet = client.open_by_url(spreadsheet_url).worksheet("leituras")
 aba_tarifas = client.open_by_url(spreadsheet_url).worksheet("tarifas")
 
-# Interface principal
+# Interface do app
 st.title("🔌 Controle de Consumo de Energia")
 st.caption("Acompanhe, projete e compare o consumo de energia mês a mês.")
 
@@ -43,27 +43,19 @@ if st.button("💾 Salvar Leitura"):
     projecao_kwh = round(media_diaria * dias_totais, 2)
     mes = data_leitura.strftime("%Y-%m")
 
-    # Buscar tarifa
     try:
         df_tarifas = pd.DataFrame(aba_tarifas.get_all_records())
         tarifa_do_mes = df_tarifas[df_tarifas["mes"] == mes]["tarifa"].values
-
         if len(tarifa_do_mes) > 0:
             tarifa_str = str(tarifa_do_mes[0]).replace(",", ".")
-            try:
-                tarifa = float(tarifa_str)
-            except ValueError:
-                st.warning("⚠️ Tarifa inválida. Usando padrão: 1.05")
-                tarifa = 1.05
+            tarifa = float(tarifa_str)
         else:
             tarifa = 1.05
     except Exception:
-        st.warning("⚠️ Não foi possível buscar a tarifa. Usando padrão: 1.05")
         tarifa = 1.05
 
     valor_estimado = round(projecao_kwh * tarifa, 2)
 
-    # Salvar na planilha com vírgula
     nova_linha = [
         str(data_leitura),
         leitura,
@@ -77,27 +69,82 @@ if st.button("💾 Salvar Leitura"):
     sheet.append_row(nova_linha)
     st.success(f"✅ Leitura salva! Estimativa da conta: R$ {valor_estimado:.2f}")
 
-# Histórico
-st.subheader("📊 Histórico de Leituras")
+# Leitura da planilha
 df = pd.DataFrame(sheet.get_all_records())
 
-# Colunas numéricas
+# Conversão de valores com vírgula → ponto
 colunas_numericas = ["leitura", "consumo_parcial", "dias_passados", "media_diaria", "projecao_kwh", "valor_estimado"]
-
-# Corrigir vírgula → ponto e converter
 for col in colunas_numericas:
     if col in df.columns:
         df[col] = df[col].astype(str).str.replace(",", ".").str.replace("R$", "").str.strip()
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-# Formatar para exibição
+# Formatação visual
 df["media_diaria"] = df["media_diaria"].map("{:.2f}".format)
 df["projecao_kwh"] = df["projecao_kwh"].map("{:.2f}".format)
 df["valor_estimado"] = df["valor_estimado"].map(lambda x: f"R$ {x:.2f}")
 
-st.dataframe(df)
+# Tabela moderna com CSS
+st.markdown("### 📋 Histórico de Leituras")
+tabela_html = """
+<style>
+.tabela-consumo {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 15px;
+}
+.tabela-consumo thead {
+    background-color: #f4f4f4;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.tabela-consumo th, .tabela-consumo td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+.tabela-consumo tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+.tabela-consumo tr:hover {
+    background-color: #f1f1f1;
+}
+.tabela-consumo th {
+    color: #333;
+}
+</style>
+<table class='tabela-consumo'>
+    <thead>
+        <tr>
+            <th>Data</th>
+            <th>Leitura</th>
+            <th>Consumo</th>
+            <th>Dias</th>
+            <th>Média diária</th>
+            <th>Projeção (kWh)</th>
+            <th>Valor estimado</th>
+            <th>Mês</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+for _, row in df.iterrows():
+    tabela_html += "<tr>"
+    tabela_html += f"<td>{row['data_leitura']}</td>"
+    tabela_html += f"<td>{row['leitura']}</td>"
+    tabela_html += f"<td>{row['consumo_parcial']}</td>"
+    tabela_html += f"<td>{row['dias_passados']}</td>"
+    tabela_html += f"<td>{row['media_diaria']}</td>"
+    tabela_html += f"<td>{row['projecao_kwh']}</td>"
+    tabela_html += f"<td>{row['valor_estimado']}</td>"
+    tabela_html += f"<td>{row['mes']}</td>"
+    tabela_html += "</tr>"
+tabela_html += "</tbody></table>"
+st.markdown(tabela_html, unsafe_allow_html=True)
 
-# Gráfico de consumo mensal
+# Gráfico mensal
 st.subheader("📈 Consumo Acumulado por Mês")
 if "mes" in df.columns and "consumo_parcial" in df.columns:
     grafico = (
@@ -113,3 +160,22 @@ if "mes" in df.columns and "consumo_parcial" in df.columns:
     st.altair_chart(grafico, use_container_width=True)
 else:
     st.info("📌 Ainda não há dados suficientes para gerar o gráfico.")
+
+# Excluir uma leitura
+st.subheader("🗑️ Excluir uma Leitura")
+if not df.empty:
+    datas = df["data_leitura"].tolist()
+    data_excluir = st.selectbox("Selecione a data da leitura a excluir", options=datas)
+
+    if st.button("🚨 Excluir leitura selecionada"):
+        linhas = sheet.get_all_values()
+        for i, linha in enumerate(linhas[1:], start=2):  # pula cabeçalho
+            if linha[0] == data_excluir:
+                sheet.delete_rows(i)
+                st.success(f"✅ Leitura de {data_excluir} foi excluída com sucesso.")
+                st.experimental_rerun()
+                break
+        else:
+            st.warning("⚠️ Leitura não encontrada.")
+else:
+    st.info("Ainda não há leituras para excluir.")
