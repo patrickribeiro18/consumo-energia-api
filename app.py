@@ -39,7 +39,7 @@ if st.button("💾 Salvar Leitura"):
     data_ultima = pd.to_datetime(dados[-1]["data_leitura"]) if dados else data_leitura
 
     consumo_parcial = leitura - ultima_leitura
-    dias_passados = (data_leitura - data_ultima.date()).days or 1
+    dias_passados = (data_leitura - data_ultima).days or 1
     media_diaria = consumo_parcial / dias_passados
     dias_totais = 30
     projecao_kwh = round(media_diaria * dias_totais, 2)
