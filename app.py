@@ -36,7 +36,7 @@ leitura = st.number_input("🔢 Numeração atual do relógio (kWh)", min_value=
 if st.button("💾 Salvar Leitura"):
     dados = sheet.get_all_records()
     ultima_leitura = int(dados[-1]["leitura"]) if dados else 0
-    data_ultima = pd.to_datetime(dados[-1]["data_leitura"]) if dados else data_leitura
+    data_ultima = pd.to_datetime(dados[-1]["data_leitura"]).date() if dados else data_leitura
 
     consumo_parcial = leitura - ultima_leitura
     dias_passados = (data_leitura - data_ultima).days or 1
@@ -46,10 +46,21 @@ if st.button("💾 Salvar Leitura"):
 
     mes = data_leitura.strftime("%Y-%m")
 
+    # Buscar tarifa com tratamento de vírgulas e falhas
     try:
         df_tarifas = pd.DataFrame(aba_tarifas.get_all_records())
         tarifa_do_mes = df_tarifas[df_tarifas["mes"] == mes]["tarifa"].values
-        tarifa = float(tarifa_do_mes[0]) if len(tarifa_do_mes) > 0 else 0.91
+
+        if len(tarifa_do_mes) > 0:
+            tarifa_str = str(tarifa_do_mes[0]).replace(",", ".")
+            try:
+                tarifa = float(tarifa_str)
+            except ValueError:
+                st.warning("⚠️ Tarifa inválida encontrada. Usando valor padrão.")
+                tarifa = 0.91
+        else:
+            tarifa = 0.91
+
     except Exception:
         st.warning("⚠️ Não foi possível buscar a tarifa atual, usando valor padrão.")
         tarifa = 0.91
